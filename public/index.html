@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>이미지 머지 프로그램</title>
+  <!-- Materialize CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
   <style>
+    body {
+      padding: 20px;
+    }
     /* 드래그 앤드랍 영역 스타일 */
     #drop-area {
       border: 2px dashed #ccc;
@@ -47,89 +52,121 @@
       border: 1px solid #ccc;
       margin-top: 20px;
     }
-    .control-panel {
-      margin-bottom: 20px;
-    }
-    .control-panel > div {
-      margin-bottom: 10px;
-    }
     .spacing-control {
       margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
-<h1>이미지 머지 프로그램</h1>
+<div class="container">
+  <h3 class="center-align">이미지 머지 프로그램</h3>
 
-<!-- 드래그 앤드랍 영역 (클릭 시 파일 선택창 열림) -->
-<div id="drop-area">이미지를 여기로 드래그 앤 드랍하거나 클릭하세요</div>
-<!-- 숨겨진 파일 입력 -->
-<input type="file" id="file-input" multiple accept="image/*" style="display:none;">
+  <!-- 이미지 추가 영역 -->
+  <div class="card">
+    <div class="card-content">
+      <div id="drop-area" class="center-align">이미지를 여기로 드래그 앤 드랍하거나 클릭하세요</div>
+      <input type="file" id="file-input" multiple accept="image/*" style="display:none;">
+      <div id="image-list"></div>
+    </div>
+  </div>
 
-<!-- 이미지 아이템(썸네일 + 삭제버튼)을 담는 영역 -->
-<div id="image-list"></div>
+  <!-- 옵션 영역 -->
+  <div class="card">
+    <div class="card-content">
+      <h5>옵션</h5>
+      <div class="row">
+        <div class="input-field col s12 m6">
+          <label>합치기 방향:</label>
+          <p>
+            <label>
+              <input name="direction" type="radio" value="horizontal"/>
+              <span>가로</span>
+            </label>
+            <label>
+              <input name="direction" type="radio" value="vertical" checked/>
+              <span>세로</span>
+            </label>
+          </p>
+        </div>
+        <div class="input-field col s12 m6">
+          <select id="alignment-select"></select>
+          <label>정렬 옵션:</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="input-field col s12 m6">
+          <label for="global-spacing">전체 간격 설정: <span id="global-spacing-value">20</span>px</label>
+          <input type="range" id="global-spacing" min="0" max="50" value="20">
+        </div>
+      </div>
+      <div id="individual-spacing-container"></div>
+      <div class="row">
+        <div class="input-field col s12 m6">
+          <input id="max-width" type="number" value="1000" min="0">
+          <label for="max-width" class="active">최대 너비 (0이면 제한 없음)</label>
+        </div>
+        <div class="input-field col s12 m6">
+          <input id="max-height" type="number" value="0" min="0">
+          <label for="max-height" class="active">최대 높이 (0이면 제한 없음)</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col s12">
+          <label>배경색:</label>
+          <p>
+            <label>
+              <input name="bg-option" type="radio" value="white" checked/>
+              <span>흰색</span>
+            </label>
+            <label>
+              <input name="bg-option" type="radio" value="black"/>
+              <span>검은색</span>
+            </label>
+            <label>
+              <input name="bg-option" type="radio" value="transparent"/>
+              <span>투명</span>
+            </label>
+            <label>
+              <input name="bg-option" type="radio" value="custom"/>
+              <span>사용자 지정</span>
+            </label>
+            <input type="color" id="custom-bg-color" value="#ffffff" style="display:none; vertical-align: middle; margin-left: 10px;">
+          </p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="input-field col s12 m6">
+          <select id="format-select">
+            <option value="png">PNG</option>
+            <option value="jpeg" selected>JPEG</option>
+          </select>
+          <label>저장 형식:</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col s12">
+          <button id="merge-btn" class="btn waves-effect">이미지 합치기</button>
+          <button id="download-btn" class="btn waves-effect" style="display:none;">다운로드</button>
+          <button id="reset-btn" class="btn red waves-effect">전체 초기화</button>
+          <button id="clear-photos-btn" class="btn orange waves-effect">사진 삭제</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<!-- 옵션 패널 -->
-<div class="control-panel">
-  <div>
-    <label>합치기 방향: </label>
-    <input type="radio" name="direction" value="horizontal" id="horizontal">
-    <label for="horizontal">가로</label>
-    <input type="radio" name="direction" value="vertical" id="vertical" checked>
-    <label for="vertical">세로</label>
+  <!-- 미리보기 영역 -->
+  <div class="card">
+    <div class="card-content">
+      <h5>미리보기</h5>
+      <canvas id="preview"></canvas>
+    </div>
   </div>
-  <div>
-    <label>정렬 옵션: </label>
-    <select id="alignment-select">
-      <!-- 기본은 세로 합치기일 때, 가로 정렬 옵션 (왼쪽, 중앙, 오른쪽) 중 중앙을 기본으로 -->
-    </select>
-  </div>
-  <div>
-    <label>전체 간격 설정: </label>
-    <input type="range" id="global-spacing" min="0" max="50" value="20">
-    <span id="global-spacing-value">20</span>px
-  </div>
-  <!-- 개별 간격 슬라이더 컨테이너 -->
-  <div id="individual-spacing-container"></div>
-  <div>
-    <label>최대 너비 (0이면 제한 없음): </label>
-    <input type="number" id="max-width" value="1000" min="0">
-  </div>
-  <div>
-    <label>최대 높이 (0이면 제한 없음): </label>
-    <input type="number" id="max-height" value="0" min="0">
-  </div>
-  <div>
-    <label>배경색: </label>
-    <input type="radio" name="bg-option" value="white" id="bg-white" checked>
-    <label for="bg-white">흰색</label>
-    <input type="radio" name="bg-option" value="black" id="bg-black">
-    <label for="bg-black">검은색</label>
-    <input type="radio" name="bg-option" value="transparent" id="bg-transparent">
-    <label for="bg-transparent">투명</label>
-    <input type="radio" name="bg-option" value="custom" id="bg-custom">
-    <label for="bg-custom">사용자 지정</label>
-    <input type="color" id="custom-bg-color" value="#ffffff" style="display:none; vertical-align: middle;">
-  </div>
-  <div>
-    <label>저장 형식: </label>
-    <select id="format-select">
-      <option value="png">PNG</option>
-      <option value="jpeg" selected>JPEG</option>
-    </select>
-  </div>
-  <button id="merge-btn">이미지 합치기</button>
-  <button id="download-btn" style="display:none;">다운로드</button>
 </div>
 
-<!-- 합쳐진 결과 미리보기 -->
-<div>
-  <h2>미리보기</h2>
-  <canvas id="preview"></canvas>
-</div>
-
+<!-- Materialize JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 <script>
-  // 전역 변수: imageList 내에 추가된 컨테이너 요소들을 기준으로 작업
+  // 전역 변수: 이미지 아이템 컨테이너와 개별 간격 관리
   let images = []; // 각 항목은 이미지 아이템 컨테이너(div)
   let individualSpacings = []; // 이미지 사이 개별 간격
 
@@ -143,12 +180,18 @@
   const globalSpacingValue = document.getElementById('global-spacing-value');
   const individualSpacingContainer = document.getElementById('individual-spacing-container');
   const alignmentSelect = document.getElementById('alignment-select');
-  const horizontalRadio = document.getElementById('horizontal');
-  const verticalRadio = document.getElementById('vertical');
   const maxWidthInput = document.getElementById('max-width');
   const maxHeightInput = document.getElementById('max-height');
   const formatSelect = document.getElementById('format-select');
   const customBgColorInput = document.getElementById('custom-bg-color');
+  const resetBtn = document.getElementById('reset-btn');
+  const clearPhotosBtn = document.getElementById('clear-photos-btn');
+
+  // Materialize select 초기화
+  document.addEventListener('DOMContentLoaded', function() {
+    var elems = document.querySelectorAll('select');
+    M.FormSelect.init(elems);
+  });
 
   // 배경색 옵션에 따라 사용자 지정 색상 입력 보이기/숨기기 및 저장 형식 조정
   function updateCustomBgVisibility() {
@@ -175,11 +218,11 @@
     fileInput.click();
   });
 
-  // 파일 입력 선택 시 처리
+  // 파일 선택 시 처리
   fileInput.addEventListener('change', (e) => {
     const files = fileInput.files;
     handleFiles(files);
-    fileInput.value = ''; // 초기화해서 같은 파일 재선택 가능하도록
+    fileInput.value = ''; // 같은 파일 재선택 가능하도록 초기화
   });
 
   // 드래그 앤드랍 기본 이벤트 방지
@@ -208,7 +251,7 @@
           img.classList.add('thumb');
           img.draggable = false;
 
-          // 이미지 아이템 컨테이너
+          // 이미지 아이템 컨테이너 생성
           const container = document.createElement('div');
           container.classList.add('image-item');
           container.draggable = true;
@@ -265,7 +308,7 @@
     return false;
   }
 
-  // 개별 간격 컨트롤 업데이트 (이미지 추가 및 순서 변경 시 호출)
+  // 개별 간격 컨트롤 업데이트 (이미지 추가/순서 변경 시)
   function updateIndividualSpacingControls() {
     individualSpacingContainer.innerHTML = '';
     const containers = Array.from(imageList.children);
@@ -299,7 +342,7 @@
     }
   }
 
-  // 전체 간격 슬라이더 값 갱신 및 개별 슬라이더 동기화
+  // 전체 간격 슬라이더 동기화
   globalSpacingInput.addEventListener('input', () => {
     globalSpacingValue.textContent = globalSpacingInput.value;
     const sliders = individualSpacingContainer.querySelectorAll('input');
@@ -309,7 +352,7 @@
     individualSpacings = individualSpacings.map(() => parseInt(globalSpacingInput.value, 10));
   });
 
-  // 정렬 옵션 업데이트 (합치기 방향에 따라 옵션 변경 및 기본값 중앙 설정)
+  // 정렬 옵션 업데이트 (합치기 방향에 따라 옵션 변경, 기본 중앙 선택)
   function updateAlignmentOptions() {
     alignmentSelect.innerHTML = '';
     if(document.querySelector('input[name="direction"]:checked').value === 'horizontal') {
@@ -339,12 +382,15 @@
         alignmentSelect.appendChild(optionElem);
       });
     }
+    // Materialize select 갱신
+    M.FormSelect.init(alignmentSelect);
   }
   updateAlignmentOptions();
-  horizontalRadio.addEventListener('change', updateAlignmentOptions);
-  verticalRadio.addEventListener('change', updateAlignmentOptions);
+  document.querySelectorAll('input[name="direction"]').forEach(radio => {
+    radio.addEventListener('change', updateAlignmentOptions);
+  });
 
-  // 이미지 합치기 버튼 클릭 시 처리
+  // 이미지 합치기 처리
   mergeBtn.addEventListener('click', () => {
     const containers = Array.from(imageList.children);
     if(containers.length === 0) return;
@@ -363,13 +409,13 @@
     if(loadedCount === containers.length) mergeImages(containers);
   });
 
-  // 이미지 합치기 함수 (정렬 옵션, 최대 사이즈, 배경색, 개별 간격 적용)
+  // 이미지 합치기 함수 (정렬, 최대 사이즈, 배경, 개별 간격 적용)
   function mergeImages(containers) {
     const imageElements = containers.map(container => container.querySelector('img'));
     const maxW = parseInt(maxWidthInput.value, 10);
     const maxH = parseInt(maxHeightInput.value, 10);
 
-    // 각 이미지의 스케일된 크기를 계산 (비율 유지)
+    // 각 이미지 비율 유지 크기 계산
     const scaledDimensions = imageElements.map(img => {
       const origW = img.naturalWidth;
       const origH = img.naturalHeight;
@@ -404,7 +450,7 @@
     const ctx = previewCanvas.getContext('2d');
     ctx.clearRect(0, 0, totalWidth, totalHeight);
 
-    // 배경색 처리: 기본 흰색, 검은색, 투명, 사용자 지정
+    // 배경색 처리: 흰색, 검은색, 투명, 사용자 지정
     const bgOption = document.querySelector('input[name="bg-option"]:checked').value;
     let bgColor = '';
     if(bgOption === 'white') {
@@ -463,10 +509,9 @@
     downloadBtn.style.display = 'inline-block';
   }
 
-  // 다운로드 버튼: 선택한 형식(PNG 또는 JPEG)으로 캔버스 내용을 저장
+  // 다운로드 버튼: 선택한 형식에 따라 저장 (투명 배경 선택 시 강제 PNG)
   downloadBtn.addEventListener('click', () => {
     const bgOption = document.querySelector('input[name="bg-option"]:checked').value;
-    // 만약 투명 배경이면 강제로 PNG 형식 사용
     let format = (bgOption === 'transparent') ? 'png' : formatSelect.value;
     const link = document.createElement('a');
     link.download = 'merged_image.' + format;
@@ -476,6 +521,32 @@
       link.href = previewCanvas.toDataURL('image/png');
     }
     link.click();
+  });
+
+  // 전체 초기화 버튼: 사진 전체 삭제와 설정 초기화
+  resetBtn.addEventListener('click', () => {
+    // 사진 삭제
+    imageList.innerHTML = '';
+    updateIndividualSpacingControls();
+    // 설정 초기화
+    document.querySelector('input[name="direction"][value="vertical"]').checked = true;
+    updateAlignmentOptions();
+    globalSpacingInput.value = 20;
+    globalSpacingValue.textContent = "20";
+    maxWidthInput.value = 1000;
+    maxHeightInput.value = 0;
+    document.querySelector('input[name="bg-option"][value="white"]').checked = true;
+    updateCustomBgVisibility();
+    formatSelect.value = "jpeg";
+    customBgColorInput.value = "#ffffff";
+    // Materialize select 재초기화
+    M.FormSelect.init(document.querySelectorAll('select'));
+  });
+
+  // 사진 삭제 버튼: 사진만 전체 삭제 (설정 유지)
+  clearPhotosBtn.addEventListener('click', () => {
+    imageList.innerHTML = '';
+    updateIndividualSpacingControls();
   });
 </script>
 </body>
