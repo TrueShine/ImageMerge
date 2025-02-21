@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>이미지 머지 프로그램</title>
+  <style>
+    /* 드래그 앤드랍 영역 스타일 */
+    #drop-area {
+      border: 2px dashed #ccc;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+      cursor: pointer;
+    }
+    /* 이미지 아이템 컨테이너 (썸네일 + 삭제 버튼) */
+    .image-item {
+      position: relative;
+      display: inline-block;
+    }
+    .thumb {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border: 1px solid #ddd;
+      display: block;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background-color: rgba(255, 0, 0, 0.7);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 5px;
+    }
+    /* 이미지 썸네일 리스트 */
+    #image-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    /* 미리보기 캔버스 */
+    #preview {
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+    .control-panel {
+      margin-bottom: 20px;
+    }
+    .control-panel > div {
+      margin-bottom: 10px;
+    }
+    .spacing-control {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+<h1>이미지 머지 프로그램</h1>
+
+<!-- 드래그 앤드랍 영역 (클릭 시 파일 선택창 열림) -->
+<div id="drop-area">이미지를 여기로 드래그 앤 드랍하거나 클릭하세요</div>
+<!-- 숨겨진 파일 입력 -->
+<input type="file" id="file-input" multiple accept="image/*" style="display:none;">
+
+<!-- 이미지 아이템(썸네일 + 삭제버튼)을 담는 영역 -->
+<div id="image-list"></div>
+
+<!-- 옵션 패널 -->
+<div class="control-panel">
+  <div>
+    <label>합치기 방향: </label>
+    <input type="radio" name="direction" value="horizontal" id="horizontal">
+    <label for="horizontal">가로</label>
+    <input type="radio" name="direction" value="vertical" id="vertical" checked>
+    <label for="vertical">세로</label>
+  </div>
+  <div>
+    <label>정렬 옵션: </label>
+    <select id="alignment-select">
+      <!-- 기본은 세로 합치기일 때, 가로 정렬 옵션 (왼쪽, 중앙, 오른쪽) 중 중앙을 기본으로 -->
+    </select>
+  </div>
+  <div>
+    <label>전체 간격 설정: </label>
+    <input type="range" id="global-spacing" min="0" max="50" value="20">
+    <span id="global-spacing-value">20</span>px
+  </div>
+  <!-- 개별 간격 슬라이더 컨테이너 -->
+  <div id="individual-spacing-container"></div>
+  <div>
+    <label>최대 너비 (0이면 제한 없음): </label>
+    <input type="number" id="max-width" value="1000" min="0">
+  </div>
+  <div>
+    <label>최대 높이 (0이면 제한 없음): </label>
+    <input type="number" id="max-height" value="0" min="0">
+  </div>
+  <div>
+    <label>배경색: </label>
+    <input type="radio" name="bg-option" value="white" id="bg-white" checked>
+    <label for="bg-white">흰색</label>
+    <input type="radio" name="bg-option" value="black" id="bg-black">
+    <label for="bg-black">검은색</label>
+    <input type="radio" name="bg-option" value="transparent" id="bg-transparent">
+    <label for="bg-transparent">투명</label>
+    <input type="radio" name="bg-option" value="custom" id="bg-custom">
+    <label for="bg-custom">사용자 지정</label>
+    <input type="color" id="custom-bg-color" value="#ffffff" style="display:none; vertical-align: middle;">
+  </div>
+  <div>
+    <label>저장 형식: </label>
+    <select id="format-select">
+      <option value="png">PNG</option>
+      <option value="jpeg" selected>JPEG</option>
+    </select>
+  </div>
+  <button id="merge-btn">이미지 합치기</button>
+  <button id="download-btn" style="display:none;">다운로드</button>
+</div>
+
+<!-- 합쳐진 결과 미리보기 -->
+<div>
+  <h2>미리보기</h2>
+  <canvas id="preview"></canvas>
+</div>
+
+<script>
+  // 전역 변수: imageList 내에 추가된 컨테이너 요소들을 기준으로 작업
+  let images = []; // 각 항목은 이미지 아이템 컨테이너(div)
+  let individualSpacings = []; // 이미지 사이 개별 간격
+
+  const dropArea = document.getElementById('drop-area');
+  const fileInput = document.getElementById('file-input');
+  const imageList = document.getElementById('image-list');
+  const mergeBtn = document.getElementById('merge-btn');
+  const previewCanvas = document.getElementById('preview');
+  const downloadBtn = document.getElementById('download-btn');
+  const globalSpacingInput = document.getElementById('global-spacing');
+  const globalSpacingValue = document.getElementById('global-spacing-value');
+  const individualSpacingContainer = document.getElementById('individual-spacing-container');
+  const alignmentSelect = document.getElementById('alignment-select');
+  const horizontalRadio = document.getElementById('horizontal');
+  const verticalRadio = document.getElementById('vertical');
+  const maxWidthInput = document.getElementById('max-width');
+  const maxHeightInput = document.getElementById('max-height');
+  const formatSelect = document.getElementById('format-select');
+  const customBgColorInput = document.getElementById('custom-bg-color');
+
+  // 배경색 옵션에 따라 사용자 지정 색상 입력 보이기/숨기기 및 저장 형식 조정
+  function updateCustomBgVisibility() {
+    const bgOption = document.querySelector('input[name="bg-option"]:checked').value;
+    if(bgOption === 'custom') {
+      customBgColorInput.style.display = 'inline-block';
+    } else {
+      customBgColorInput.style.display = 'none';
+    }
+    if(bgOption === 'transparent') {
+      formatSelect.value = 'png';
+      formatSelect.disabled = true;
+    } else {
+      formatSelect.disabled = false;
+    }
+  }
+  document.querySelectorAll('input[name="bg-option"]').forEach(radio => {
+    radio.addEventListener('change', updateCustomBgVisibility);
+  });
+  updateCustomBgVisibility();
+
+  // 클릭 시 파일 선택창 열기
+  dropArea.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  // 파일 입력 선택 시 처리
+  fileInput.addEventListener('change', (e) => {
+    const files = fileInput.files;
+    handleFiles(files);
+    fileInput.value = ''; // 초기화해서 같은 파일 재선택 가능하도록
+  });
+
+  // 드래그 앤드랍 기본 이벤트 방지
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropArea.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  });
+
+  // 드래그앤드랍 파일 추가
+  dropArea.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+  });
+
+  // 파일 처리: 이미지 파일이면 FileReader로 읽어와 이미지 아이템(썸네일+삭제버튼) 생성
+  function handleFiles(files) {
+    [...files].forEach(file => {
+      if(file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.classList.add('thumb');
+          img.draggable = false;
+
+          // 이미지 아이템 컨테이너
+          const container = document.createElement('div');
+          container.classList.add('image-item');
+          container.draggable = true;
+
+          // 삭제 버튼
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = '×';
+          deleteBtn.classList.add('delete-btn');
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            container.remove();
+            updateIndividualSpacingControls();
+          });
+
+          container.appendChild(img);
+          container.appendChild(deleteBtn);
+
+          // 드래그앤드랍 순서 변경 이벤트 등록 (컨테이너 기준)
+          container.addEventListener('dragstart', dragStart);
+          container.addEventListener('dragover', dragOver);
+          container.addEventListener('drop', dragDrop);
+
+          imageList.appendChild(container);
+          updateIndividualSpacingControls();
+        }
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // 드래그 앤드랍 순서 변경 구현 (컨테이너 기준)
+  let dragSrcEl = null;
+  function dragStart(e) {
+    dragSrcEl = this;
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function dragOver(e) {
+    e.preventDefault();
+    return false;
+  }
+  function dragDrop(e) {
+    e.stopPropagation();
+    if(dragSrcEl !== this) {
+      const nodes = Array.from(imageList.children);
+      const srcIndex = nodes.indexOf(dragSrcEl);
+      const targetIndex = nodes.indexOf(this);
+      if(srcIndex < targetIndex) {
+        imageList.insertBefore(dragSrcEl, this.nextSibling);
+      } else {
+        imageList.insertBefore(dragSrcEl, this);
+      }
+      updateIndividualSpacingControls();
+    }
+    return false;
+  }
+
+  // 개별 간격 컨트롤 업데이트 (이미지 추가 및 순서 변경 시 호출)
+  function updateIndividualSpacingControls() {
+    individualSpacingContainer.innerHTML = '';
+    const containers = Array.from(imageList.children);
+    if(containers.length > 1) {
+      individualSpacings = [];
+      for(let i = 0; i < containers.length - 1; i++) {
+        individualSpacings.push(parseInt(globalSpacingInput.value, 10));
+        const div = document.createElement('div');
+        div.className = 'spacing-control';
+        const label = document.createElement('label');
+        label.textContent = `이미지 ${i+1}와 이미지 ${i+2} 사이 간격: `;
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = 0;
+        slider.max = 50;
+        slider.value = globalSpacingInput.value;
+        slider.dataset.index = i;
+        const span = document.createElement('span');
+        span.textContent = slider.value;
+        slider.addEventListener('input', (e) => {
+          const idx = parseInt(e.target.dataset.index, 10);
+          individualSpacings[idx] = parseInt(e.target.value, 10);
+          span.textContent = e.target.value;
+        });
+        div.appendChild(label);
+        div.appendChild(slider);
+        div.appendChild(document.createTextNode('px '));
+        div.appendChild(span);
+        individualSpacingContainer.appendChild(div);
+      }
+    }
+  }
+
+  // 전체 간격 슬라이더 값 갱신 및 개별 슬라이더 동기화
+  globalSpacingInput.addEventListener('input', () => {
+    globalSpacingValue.textContent = globalSpacingInput.value;
+    const sliders = individualSpacingContainer.querySelectorAll('input');
+    sliders.forEach(slider => {
+      slider.value = globalSpacingInput.value;
+    });
+    individualSpacings = individualSpacings.map(() => parseInt(globalSpacingInput.value, 10));
+  });
+
+  // 정렬 옵션 업데이트 (합치기 방향에 따라 옵션 변경 및 기본값 중앙 설정)
+  function updateAlignmentOptions() {
+    alignmentSelect.innerHTML = '';
+    if(document.querySelector('input[name="direction"]:checked').value === 'horizontal') {
+      const options = [
+        { value: 'top', text: '상단' },
+        { value: 'middle', text: '중앙' },
+        { value: 'bottom', text: '하단' }
+      ];
+      options.forEach(opt => {
+        const optionElem = document.createElement('option');
+        optionElem.value = opt.value;
+        optionElem.textContent = opt.text;
+        if(opt.value === 'middle') optionElem.selected = true;
+        alignmentSelect.appendChild(optionElem);
+      });
+    } else {
+      const options = [
+        { value: 'left', text: '왼쪽' },
+        { value: 'middle', text: '중앙' },
+        { value: 'right', text: '오른쪽' }
+      ];
+      options.forEach(opt => {
+        const optionElem = document.createElement('option');
+        optionElem.value = opt.value;
+        optionElem.textContent = opt.text;
+        if(opt.value === 'middle') optionElem.selected = true;
+        alignmentSelect.appendChild(optionElem);
+      });
+    }
+  }
+  updateAlignmentOptions();
+  horizontalRadio.addEventListener('change', updateAlignmentOptions);
+  verticalRadio.addEventListener('change', updateAlignmentOptions);
+
+  // 이미지 합치기 버튼 클릭 시 처리
+  mergeBtn.addEventListener('click', () => {
+    const containers = Array.from(imageList.children);
+    if(containers.length === 0) return;
+    let loadedCount = 0;
+    containers.forEach(container => {
+      const img = container.querySelector('img');
+      if(!img.complete) {
+        img.onload = () => {
+          loadedCount++;
+          if(loadedCount === containers.length) mergeImages(containers);
+        }
+      } else {
+        loadedCount++;
+      }
+    });
+    if(loadedCount === containers.length) mergeImages(containers);
+  });
+
+  // 이미지 합치기 함수 (정렬 옵션, 최대 사이즈, 배경색, 개별 간격 적용)
+  function mergeImages(containers) {
+    const imageElements = containers.map(container => container.querySelector('img'));
+    const maxW = parseInt(maxWidthInput.value, 10);
+    const maxH = parseInt(maxHeightInput.value, 10);
+
+    // 각 이미지의 스케일된 크기를 계산 (비율 유지)
+    const scaledDimensions = imageElements.map(img => {
+      const origW = img.naturalWidth;
+      const origH = img.naturalHeight;
+      let scale = 1;
+      if(maxW > 0) {
+        scale = Math.min(scale, maxW / origW);
+      }
+      if(maxH > 0) {
+        scale = Math.min(scale, maxH / origH);
+      }
+      return {
+        width: origW * scale,
+        height: origH * scale
+      };
+    });
+
+    let totalWidth = 0;
+    let totalHeight = 0;
+    const direction = document.querySelector('input[name="direction"]:checked').value;
+    if(direction === 'horizontal') {
+      totalWidth = scaledDimensions.reduce((sum, dim) => sum + dim.width, 0) +
+              (individualSpacings.length > 0 ? individualSpacings.reduce((sum, gap) => sum + gap, 0) : 0);
+      totalHeight = Math.max(...scaledDimensions.map(dim => dim.height));
+    } else {
+      totalHeight = scaledDimensions.reduce((sum, dim) => sum + dim.height, 0) +
+              (individualSpacings.length > 0 ? individualSpacings.reduce((sum, gap) => sum + gap, 0) : 0);
+      totalWidth = Math.max(...scaledDimensions.map(dim => dim.width));
+    }
+
+    previewCanvas.width = totalWidth;
+    previewCanvas.height = totalHeight;
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, totalWidth, totalHeight);
+
+    // 배경색 처리: 기본 흰색, 검은색, 투명, 사용자 지정
+    const bgOption = document.querySelector('input[name="bg-option"]:checked').value;
+    let bgColor = '';
+    if(bgOption === 'white') {
+      bgColor = '#ffffff';
+    } else if(bgOption === 'black') {
+      bgColor = '#000000';
+    } else if(bgOption === 'transparent') {
+      bgColor = 'transparent';
+    } else if(bgOption === 'custom') {
+      bgColor = customBgColorInput.value;
+    }
+    if(bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, totalWidth, totalHeight);
+    }
+
+    const alignment = alignmentSelect.value;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    imageElements.forEach((img, index) => {
+      const dim = scaledDimensions[index];
+      let drawX = offsetX;
+      let drawY = offsetY;
+      if(direction === 'horizontal') {
+        if(alignment === 'top') {
+          drawY = 0;
+        } else if(alignment === 'middle') {
+          drawY = (totalHeight - dim.height) / 2;
+        } else if(alignment === 'bottom') {
+          drawY = totalHeight - dim.height;
+        }
+      } else {
+        if(alignment === 'left') {
+          drawX = 0;
+        } else if(alignment === 'middle') {
+          drawX = (totalWidth - dim.width) / 2;
+        } else if(alignment === 'right') {
+          drawX = totalWidth - dim.width;
+        }
+      }
+      ctx.drawImage(img, drawX, drawY, dim.width, dim.height);
+      if(direction === 'horizontal') {
+        offsetX += dim.width;
+        if(index < individualSpacings.length) {
+          offsetX += individualSpacings[index];
+        }
+      } else {
+        offsetY += dim.height;
+        if(index < individualSpacings.length) {
+          offsetY += individualSpacings[index];
+        }
+      }
+    });
+
+    downloadBtn.style.display = 'inline-block';
+  }
+
+  // 다운로드 버튼: 선택한 형식(PNG 또는 JPEG)으로 캔버스 내용을 저장
+  downloadBtn.addEventListener('click', () => {
+    const bgOption = document.querySelector('input[name="bg-option"]:checked').value;
+    // 만약 투명 배경이면 강제로 PNG 형식 사용
+    let format = (bgOption === 'transparent') ? 'png' : formatSelect.value;
+    const link = document.createElement('a');
+    link.download = 'merged_image.' + format;
+    if(format === 'jpeg') {
+      link.href = previewCanvas.toDataURL('image/jpeg');
+    } else {
+      link.href = previewCanvas.toDataURL('image/png');
+    }
+    link.click();
+  });
+</script>
+</body>
+</html>
